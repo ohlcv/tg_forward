@@ -1,0 +1,23 @@
+tg_forward/
+├── main.py               # 程序入口
+├── config/
+│   ├── __init__.py
+│   └── settings.py       # 配置文件
+├── core/
+│   ├── __init__.py
+│   ├── telegram.py       # Telegram客户端
+│   ├── twitter.py        # Twitter客户端
+│   └── forward.py        # 转发引擎
+├── database/
+│   ├── __init__.py
+│   └── models.py         # 数据模型
+├── ui/
+│   ├── __init__.py
+│   ├── main_window.py    # 主窗口
+│   ├── accounts.py       # 账号管理界面
+│   ├── groups.py         # 群组管理界面
+│   ├── rules.py         # 规则配置界面
+│   └── statistics.py     # 统计界面
+└── utils/
+    ├── __init__.py
+    └── helpers.py        # 辅助函数

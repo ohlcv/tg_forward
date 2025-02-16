@@ -1,11 +1,15 @@
 # ui/main_window.py
 
+import os
+from qtpy.QtGui import QIcon
 from qtpy.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QPushButton, QLabel, QStackedWidget, QFrame, QApplication, QMessageBox
 )
 from qtpy.QtCore import Qt
 from qt_material import apply_stylesheet
+
+from utils.common.common import resource_path
 
 from .accounts import AccountsWidget
 from .groups import GroupsWidget
@@ -18,6 +22,11 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("Telegram 消息转发")
         self.setMinimumSize(1200, 800)
         
+        # 设置应用图标
+        icon_path = resource_path('ui/assets/icon.svg')
+        if icon_path and os.path.exists(icon_path):
+            self.setWindowIcon(QIcon(icon_path))
+
         # 设置应用主题
         self.setup_theme()
         

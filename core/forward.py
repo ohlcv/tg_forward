@@ -20,17 +20,7 @@ class ForwardEngine:
         self.running = False
         self.stats = {}
         self.load_rules()
-        
-    def load_rules(self):
-        """加载转发规则"""
-        try:
-            self.rules = settings.get_forward_rules()
-            # 过滤出启用的规则
-            self.rules = [r for r in self.rules if not r.get('disabled', False)]
-            logger.info(f"已加载 {len(self.rules)} 条规则")
-        except Exception as e:
-            logger.error(f"加载规则失败: {str(e)}")
-            
+
     async def start(self):
         """启动转发引擎"""
         if self.running:
@@ -210,34 +200,33 @@ class ForwardEngine:
     def update_stats(self, rule: dict, success: bool, delay: float):
         """更新统计数据"""
         try:
-            # 更新总计数
-            total = settings.settings.value("stats/total_messages", 0)
-            settings.settings.setValue("stats/total_messages", total + 1)
-            
-            if success:
-                total_success = settings.settings.value("stats/total_success", 0)
-                settings.settings.setValue("stats/total_success", total_success + 1)
+            # 获取数据库中的规则
+            db_rule = settings.db.get_rule_by_name(rule['name'])
+            if not db_rule:
+                return
                 
+            # 获取今天的统计数据
+            today = datetime.now().date()
+            
+            # 获取规则的所有日志
+            logs = settings.db.get_forward_logs(
+                rule_id=db_rule.id,
+                start_date=today.isoformat(),
+                end_date=today.isoformat()
+            )
+            
+            # 计算统计数据
+            total_messages = len(logs)
+            success_messages = len([log for log in logs if log.status == 'success'])
+            
             # 更新今日统计
-            today = datetime.now().strftime("%Y-%m-%d")
-            daily = settings.settings.value(f"stats/daily/{today}", 0)
-            settings.settings.setValue(f"stats/daily/{today}", daily + 1)
-            
-            # 更新规则统计
-            rule_stats = settings.settings.value(f"stats/rules/{rule['name']}", {})
-            rule_stats['total'] = rule_stats.get('total', 0) + 1
-            rule_stats['today'] = rule_stats.get('today', 0) + 1
-            if success:
-                rule_stats['success'] = rule_stats.get('success', 0) + 1
-            rule_stats['success_rate'] = (rule_stats.get('success', 0) / rule_stats['total']) * 100
-            
-            # 更新平均延迟
-            delays = rule_stats.get('delays', [])
-            delays.append(delay)
-            rule_stats['delays'] = delays[-100:]  # 只保留最近100条记录
-            rule_stats['avg_delay'] = sum(delays) / len(delays)
-            
-            settings.settings.setValue(f"stats/rules/{rule['name']}", rule_stats)
+            settings.db.update_statistics(
+                rule_id=db_rule.id,
+                date=today,
+                total_messages=total_messages,
+                success_messages=success_messages,
+                avg_delay=delay
+            )
             
         except Exception as e:
             logger.error(f"更新统计数据失败: {str(e)}")
@@ -245,27 +234,31 @@ class ForwardEngine:
     def log_forward(self, rule: dict, message, success: bool):
         """记录转发日志"""
         try:
-            log_entry = {
-                'time': datetime.now().isoformat(),
-                'rule': rule['name'],
-                'source': rule['source_group']['title'],
-                'target': f"{rule['target_type']}: {rule['target']['title']}",
-                'status': 'success' if success else 'failed',
-                'message': message.text[:100] if message.text else ''
-            }
-            
-            logs = settings.settings.value("logs/forwards", [])
-            logs.append(log_entry)
-            
-            # 只保留最近1000条记录
-            if len(logs) > 1000:
-                logs = logs[-1000:]
+            # 获取数据库中的规则
+            db_rule = settings.db.get_rule_by_name(rule['name'])
+            if not db_rule:
+                return
                 
-            settings.settings.setValue("logs/forwards", logs)
+            # 添加日志记录
+            settings.db.add_forward_log(
+                rule_id=db_rule.id,
+                message_text=message.text[:100] if message.text else '',
+                status='success' if success else 'failed'
+            )
             
         except Exception as e:
             logger.error(f"记录转发日志失败: {str(e)}")
-            
+
+    def load_rules(self):
+        """加载转发规则"""
+        try:
+            self.rules = settings.get_forward_rules()
+            # 过滤出启用的规则
+            self.rules = [r for r in self.rules if not r.get('disabled', False)]
+            logger.info(f"已加载 {len(self.rules)} 条规则")
+        except Exception as e:
+            logger.error(f"加载规则失败: {str(e)}")
+
     def log_error(self, rule_name: Optional[str], error_type: str, error_msg: str):
         """记录错误日志"""
         try:

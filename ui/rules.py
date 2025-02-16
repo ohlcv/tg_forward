@@ -143,12 +143,10 @@ class RulesWidget(QWidget):
     def update_source_groups(self):
         """更新源群组下拉列表"""
         self.source_combo.clear()
-        settings.settings.beginGroup("source_groups")
-        for group_id in settings.settings.childKeys():
-            group_data = settings.settings.value(group_id)
-            self.source_combo.addItem(group_data['title'], group_id)
-        settings.settings.endGroup()
-        
+        source_groups = settings.db.get_groups('source')
+        for group in source_groups:
+            self.source_combo.addItem(group.title, group.group_id)
+            
     def update_target_selection(self):
         """根据目标类型更新目标选择界面"""
         # 清除现有内容
@@ -158,13 +156,11 @@ class RulesWidget(QWidget):
         if self.target_type.currentText() == "Telegram群组":
             # 添加Telegram群组选择
             self.target_combo = QComboBox()
-            settings.settings.beginGroup("target_groups")
-            for group_id in settings.settings.childKeys():
-                group_data = settings.settings.value(group_id)
-                self.target_combo.addItem(group_data['title'], group_id)
-            settings.settings.endGroup()
+            target_groups = settings.db.get_groups('target')
+            for group in target_groups:
+                if group.group_type != 'twitter':
+                    self.target_combo.addItem(group.title, group.group_id)
             self.target_layout.addWidget(self.target_combo)
-            
         else:
             # 添加Twitter账号选择
             self.target_combo = QComboBox()
@@ -172,12 +168,42 @@ class RulesWidget(QWidget):
             for account in accounts:
                 self.target_combo.addItem(account['username'])
             self.target_layout.addWidget(self.target_combo)
-            
-    def on_target_type_changed(self, target_type):
+
+    def on_target_type_changed(self, target_type: str):
         """目标类型改变时的处理"""
         self.update_target_selection()
         self.twitter_config.setVisible(target_type == "Twitter")
+
+    def load_rules(self):
+        """加载规则列表"""
+        rules = settings.get_forward_rules()
+        self.table.setRowCount(len(rules))
         
+        for i, rule in enumerate(rules):
+            self.table.setItem(i, 0, QTableWidgetItem(rule['name']))
+            self.table.setItem(i, 1, QTableWidgetItem(rule['source_group']['title']))
+            self.table.setItem(i, 2, QTableWidgetItem(f"{rule['target_type']}: {rule['target']['title']}"))
+            
+            # 状态切换按钮
+            status_btn = QPushButton("启用" if rule.get('disabled') else "禁用")
+            status_btn.clicked.connect(lambda checked, r=rule: self.toggle_rule_status(r))
+            self.table.setCellWidget(i, 3, status_btn)
+            
+            # 操作按钮
+            op_widget = QWidget()
+            op_layout = QHBoxLayout(op_widget)
+            op_layout.setContentsMargins(0, 0, 0, 0)
+            
+            edit_btn = QPushButton("编辑")
+            edit_btn.clicked.connect(lambda checked, r=rule: self.edit_rule(r))
+            op_layout.addWidget(edit_btn)
+            
+            delete_btn = QPushButton("删除")
+            delete_btn.clicked.connect(lambda checked, r=rule: self.delete_rule(r))
+            op_layout.addWidget(delete_btn)
+            
+            self.table.setCellWidget(i, 4, op_widget)
+            
     def save_rule(self):
         """保存规则"""
         try:
@@ -231,92 +257,31 @@ class RulesWidget(QWidget):
         except Exception as e:
             QMessageBox.critical(self, "错误", f"保存规则失败: {str(e)}")
             
-    def load_rules(self):
-        """加载规则列表"""
-        rules = settings.get_forward_rules()
-        self.table.setRowCount(len(rules))
-        
-        for i, rule in enumerate(rules):
-            self.table.setItem(i, 0, QTableWidgetItem(rule['name']))
-            self.table.setItem(i, 1, QTableWidgetItem(rule['source_group']['title']))
-            self.table.setItem(i, 2, QTableWidgetItem(f"{rule['target_type']}: {rule['target']['title']}"))
-            
-            # 状态切换按钮
-            status_btn = QPushButton("启用" if rule.get('disabled') else "禁用")
-            status_btn.clicked.connect(lambda checked, r=rule: self.toggle_rule_status(r))
-            self.table.setCellWidget(i, 3, status_btn)
-            
-            # 操作按钮
-            op_widget = QWidget()
-            op_layout = QHBoxLayout(op_widget)
-            op_layout.setContentsMargins(0, 0, 0, 0)
-            
-            edit_btn = QPushButton("编辑")
-            edit_btn.clicked.connect(lambda checked, r=rule: self.edit_rule(r))
-            op_layout.addWidget(edit_btn)
-            
-            delete_btn = QPushButton("删除")
-            delete_btn.clicked.connect(lambda checked, r=rule: self.delete_rule(r))
-            op_layout.addWidget(delete_btn)
-            
-            self.table.setCellWidget(i, 4, op_widget)
-            
     def toggle_rule_status(self, rule):
         """切换规则状态"""
         try:
-            rule['disabled'] = not rule.get('disabled', False)
-            settings.save_forward_rule(rule['name'], rule)
-            self.load_rules()
+            # 在数据库中查找规则
+            db_rule = settings.db.get_rule_by_name(rule['name'])
+            if db_rule:
+                settings.db.update_rule_status(db_rule.id, not rule.get('disabled', False))
+                self.load_rules()
         except Exception as e:
             QMessageBox.critical(self, "错误", f"切换规则状态失败: {str(e)}")
             
-    def edit_rule(self, rule):
-        """编辑规则"""
-        try:
-            # 填充表单
-            self.rule_name.setText(rule['name'])
-            
-            # 设置源群组
-            index = self.source_combo.findData(rule['source_group']['id'])
-            if index >= 0:
-                self.source_combo.setCurrentIndex(index)
-                
-            # 设置目标类型和目标
-            self.target_type.setCurrentText(rule['target_type'])
-            index = self.target_combo.findText(rule['target']['title'])
-            if index >= 0:
-                self.target_combo.setCurrentIndex(index)
-                
-            # 设置过滤器
-            self.keyword_filter.setPlainText('\n'.join(rule['filters']['keywords']))
-            self.regex_filter.setText(rule['filters']['regex'])
-            
-            # 设置Twitter配置
-            if rule['twitter_config']:
-                self.tweet_template.setPlainText(rule['twitter_config']['template'])
-                self.hashtags.setText(rule['twitter_config']['hashtags'])
-                
-            # 设置选项
-            self.delay_enabled.setChecked(rule['options']['delay']['enabled'])
-            self.delay_value.setValue(rule['options']['delay']['value'])
-            self.media_forward.setChecked(rule['options']['media_forward'])
-            
-        except Exception as e:
-            QMessageBox.critical(self, "错误", f"加载规则失败: {str(e)}")
-            
     def delete_rule(self, rule):
         """删除规则"""
-        reply = QMessageBox.question(self, "确认", 
-                                   f"确定要删除规则 {rule['name']} 吗？",
-                                   QMessageBox.StandardButton.Yes | 
-                                   QMessageBox.StandardButton.No)
+        reply = QMessageBox.question(
+            self, "确认", 
+            f"确定要删除规则 {rule['name']} 吗？",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+        )
                                    
         if reply == QMessageBox.StandardButton.Yes:
             try:
-                settings.settings.beginGroup("forward_rules")
-                settings.settings.remove(rule['name'])
-                settings.settings.endGroup()
-                self.load_rules()
+                db_rule = settings.db.get_rule_by_name(rule['name'])
+                if db_rule:
+                    settings.db.delete_rule(db_rule.id)
+                    self.load_rules()
             except Exception as e:
                 QMessageBox.critical(self, "错误", f"删除规则失败: {str(e)}")
                 

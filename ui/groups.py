@@ -79,24 +79,14 @@ class GroupsWidget(QWidget):
                 QMessageBox.critical(self, "错误", f"切换账号失败: {str(e)}")
             finally:
                 loop.close()
-                
+
     def load_groups(self):
         """加载群组列表"""
-        if not self.telegram_manager.active_client:
-            QMessageBox.warning(self, "警告", "请先选择一个账号")
-            return
-            
-        # 显示加载对话框
-        progress = QProgressDialog("正在加载群组列表...", "取消", 0, 0, self)
-        progress.setWindowModality(Qt.WindowModality.WindowModal)
-        progress.show()
-        
-        # 创建工作线程
-        self.worker = LoadGroupsWorker(self.telegram_manager)
-        self.worker.finished.connect(progress.close)
-        self.worker.finished.connect(self.on_groups_loaded)
-        self.worker.error.connect(self.on_load_error)
-        self.worker.start()
+        try:
+            groups = self.telegram_manager.get_dialogs()
+            self.update_groups(groups)
+        except Exception as e:
+            QMessageBox.critical(self, "错误", f"加载群组失败: {str(e)}")
         
     def on_groups_loaded(self, groups):
         """群组加载完成的回调"""
@@ -181,12 +171,13 @@ class SourceGroupsTab(QWidget):
     def select_source(self, group):
         """选择源群组"""
         try:
-            settings.settings.beginGroup("source_groups")
-            settings.settings.setValue(str(group['id']), {
-                'title': group['title'],
-                'type': group['type']
-            })
-            settings.settings.endGroup()
+            settings.db.save_group(
+                group_id=str(group['id']),
+                title=group['title'],
+                type='source',
+                group_type=group['type'],
+                members_count=group.get('members_count')
+            )
             QMessageBox.information(self, "成功", f"已将 {group['title']} 设置为源群组")
         except Exception as e:
             QMessageBox.critical(self, "错误", f"设置源群组失败: {str(e)}")
@@ -224,12 +215,13 @@ class TargetGroupsTab(QWidget):
     def select_target(self, group):
         """选择目标群组"""
         try:
-            settings.settings.beginGroup("target_groups")
-            settings.settings.setValue(str(group['id']), {
-                'title': group['title'],
-                'type': group['type']
-            })
-            settings.settings.endGroup()
+            settings.db.save_group(
+                group_id=str(group['id']),
+                title=group['title'],
+                type='target',
+                group_type=group['type'],
+                members_count=group.get('members_count')
+            )
             QMessageBox.information(self, "成功", f"已将 {group['title']} 设置为目标群组")
         except Exception as e:
             QMessageBox.critical(self, "错误", f"设置目标群组失败: {str(e)}")

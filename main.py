@@ -1,6 +1,9 @@
+# main.py
+
 import sys
-from PyQt6.QtWidgets import QApplication
-from PyQt6.QtCore import QCoreApplication
+import os
+from qtpy.QtWidgets import QApplication
+from qtpy.QtCore import QCoreApplication
 from ui.main_window import MainWindow
 
 def setup_application():
@@ -8,6 +11,11 @@ def setup_application():
     QCoreApplication.setOrganizationName("TGForward")
     QCoreApplication.setApplicationName("Telegram Forward")
     QCoreApplication.setApplicationVersion("1.0.0")
+    
+    # 创建必要的目录
+    os.makedirs('./data', exist_ok=True)
+    os.makedirs('./config', exist_ok=True)
+    os.makedirs('./logs', exist_ok=True)
 
 def main():
     # 创建应用程序实例

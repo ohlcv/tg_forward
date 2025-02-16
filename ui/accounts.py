@@ -63,18 +63,22 @@ class TelegramAccountTab(QWidget):
         
     def load_accounts(self):
         """加载已保存的账号"""
-        accounts = settings.get_telegram_accounts()
-        self.table.setRowCount(len(accounts))
-        
-        for i, account in enumerate(accounts):
-            self.table.setItem(i, 0, QTableWidgetItem(account['phone']))
-            self.table.setItem(i, 1, QTableWidgetItem(account['api_id']))
-            self.table.setItem(i, 2, QTableWidgetItem(account['api_hash']))
+        try:
+            accounts = settings.get_telegram_accounts()
+            self.table.setRowCount(len(accounts))
             
-            # 删除按钮
-            delete_btn = QPushButton("删除")
-            delete_btn.clicked.connect(lambda checked, row=i: self.delete_account(row))
-            self.table.setCellWidget(i, 3, delete_btn)
+            for i, account in enumerate(accounts):
+                self.table.setItem(i, 0, QTableWidgetItem(account['phone']))
+                self.table.setItem(i, 1, QTableWidgetItem(account['api_id']))
+                self.table.setItem(i, 2, QTableWidgetItem(account['api_hash']))
+                
+                # 删除按钮
+                delete_btn = QPushButton("删除")
+                delete_btn.clicked.connect(lambda checked, row=i: self.delete_account(row))
+                self.table.setCellWidget(i, 3, delete_btn)
+                
+        except Exception as e:
+            QMessageBox.critical(self, "错误", f"加载账号失败: {str(e)}")
             
     def add_account(self):
         """添加新账号"""
@@ -102,16 +106,24 @@ class TelegramAccountTab(QWidget):
     def delete_account(self, row):
         """删除账号"""
         phone = self.table.item(row, 0).text()
-        reply = QMessageBox.question(self, "确认", 
-                                   f"确定要删除账号 {phone} 吗？",
-                                   QMessageBox.StandardButton.Yes | 
-                                   QMessageBox.StandardButton.No)
+        reply = QMessageBox.question(
+            self, "确认", 
+            f"确定要删除账号 {phone} 吗？",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+        )
                                    
         if reply == QMessageBox.StandardButton.Yes:
-            settings.settings.beginGroup("telegram_accounts")
-            settings.settings.remove(phone)
-            settings.settings.endGroup()
-            self.load_accounts()
+            try:
+                # 获取账号并删除
+                accounts = settings.get_telegram_accounts()
+                for account in accounts:
+                    if account['phone'] == phone:
+                        settings.db.delete_account(account['id'])
+                        break
+                self.load_accounts()
+                QMessageBox.information(self, "成功", "账号删除成功")
+            except Exception as e:
+                QMessageBox.critical(self, "错误", f"删除账号失败: {str(e)}")
 
 class TwitterAccountTab(QWidget):
     def __init__(self):
@@ -159,20 +171,24 @@ class TwitterAccountTab(QWidget):
         
     def load_accounts(self):
         """加载已保存的账号"""
-        accounts = settings.get_twitter_accounts()
-        self.table.setRowCount(len(accounts))
-        
-        for i, account in enumerate(accounts):
-            self.table.setItem(i, 0, QTableWidgetItem(account['username']))
-            self.table.setItem(i, 1, QTableWidgetItem(account['api_key']))
-            self.table.setItem(i, 2, QTableWidgetItem(account['api_secret']))
-            self.table.setItem(i, 3, QTableWidgetItem(account['access_token']))
-            self.table.setItem(i, 4, QTableWidgetItem(account['access_secret']))
+        try:
+            accounts = settings.get_twitter_accounts()
+            self.table.setRowCount(len(accounts))
             
-            # 删除按钮
-            delete_btn = QPushButton("删除")
-            delete_btn.clicked.connect(lambda checked, row=i: self.delete_account(row))
-            self.table.setCellWidget(i, 5, delete_btn)
+            for i, account in enumerate(accounts):
+                self.table.setItem(i, 0, QTableWidgetItem(account['username']))
+                self.table.setItem(i, 1, QTableWidgetItem(account['api_key']))
+                self.table.setItem(i, 2, QTableWidgetItem(account['api_secret']))
+                self.table.setItem(i, 3, QTableWidgetItem(account['access_token']))
+                self.table.setItem(i, 4, QTableWidgetItem(account['access_secret']))
+                
+                # 删除按钮
+                delete_btn = QPushButton("删除")
+                delete_btn.clicked.connect(lambda checked, row=i: self.delete_account(row))
+                self.table.setCellWidget(i, 5, delete_btn)
+                
+        except Exception as e:
+            QMessageBox.critical(self, "错误", f"加载账号失败: {str(e)}")
             
     def add_account(self):
         """添加新账号"""
@@ -207,13 +223,21 @@ class TwitterAccountTab(QWidget):
     def delete_account(self, row):
         """删除账号"""
         username = self.table.item(row, 0).text()
-        reply = QMessageBox.question(self, "确认", 
-                                   f"确定要删除账号 {username} 吗？",
-                                   QMessageBox.StandardButton.Yes | 
-                                   QMessageBox.StandardButton.No)
+        reply = QMessageBox.question(
+            self, "确认", 
+            f"确定要删除账号 {username} 吗？",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+        )
                                    
         if reply == QMessageBox.StandardButton.Yes:
-            settings.settings.beginGroup("twitter_accounts")
-            settings.settings.remove(username)
-            settings.settings.endGroup()
-            self.load_accounts()
+            try:
+                # 获取账号并删除
+                accounts = settings.get_twitter_accounts()
+                for account in accounts:
+                    if account['username'] == username:
+                        settings.db.delete_account(account['id'])
+                        break
+                self.load_accounts()
+                QMessageBox.information(self, "成功", "账号删除成功")
+            except Exception as e:
+                QMessageBox.critical(self, "错误", f"删除账号失败: {str(e)}")
